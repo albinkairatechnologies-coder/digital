@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Free Digital Health Check — Kaira Technologies</title>
+<link rel="icon" type="image/png" href="favicon (2).png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,600;9..144,0,900;9..144,1,500&family=Spectral:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   :root{
     --brick:#8c2f1c;--brick-deep:#6e2113;--ochre:#c8893f;--ochre-soft:#e9c188;
@@ -40,6 +42,13 @@
 
   .grid{display:grid;grid-template-columns:370px 1fr;gap:22px;margin-top:22px;}
   @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+  @media(min-width:901px){
+    .grid > .card:first-of-type {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+    }
+  }
 
   .card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);}
   .card-h{font-family:'Fraunces',serif;font-weight:600;font-size:16px;color:var(--brick);padding:17px 22px;border-bottom:1px solid var(--line);}
@@ -130,12 +139,47 @@
   .copybtn:hover{background:var(--ochre);color:#fff;}
   .copybtn.ok{background:var(--green);color:#fff;border-color:var(--green);}
   .err{padding:34px;color:var(--red);text-align:center;font-size:14px;line-height:1.6;}
+
+  /* PDF printing overrides */
+  body.pdf-printing {
+    background: #fbf7ee !important;
+  }
+  body.pdf-printing .wrap {
+    max-width: 800px !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+  }
+  body.pdf-printing .grid {
+    display: block !important;
+  }
+  body.pdf-printing .grid > .card:first-of-type {
+    display: none !important; /* Hide input form */
+  }
+  body.pdf-printing .grid > .card:last-of-type {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  body.pdf-printing .copybar {
+    display: none !important; /* Hide buttons */
+  }
+  body.pdf-printing .rev {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  body.pdf-printing .bar i {
+    transition: none !important;
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="logo">KAIRA<span>.</span></div>
+    <div class="logo" style="background: rgba(255, 255, 255, 0.95); padding: 6px 14px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 12px;">
+      <img src="logo (1).png" alt="KAIRA" style="height: 42px; display: block;">
+    </div>
     <h1>Free Digital Health Check</h1>
     <p>See exactly where your business stands online — your score, what's costing you customers, and the steps to get found first. In under a minute.</p>
     <div class="badges">
@@ -295,7 +339,10 @@ function render(r){
       <div class="h">Want Kaira to fix all this for you?</div>
       <div class="s">We get Tamil Nadu businesses to the top of Google. — Team Kaira, Kovilpatti</div>
     </div>
-    <div class="copybar"><button class="copybtn" id="cb" onclick="copyWA()">📋 Copy this report</button></div>`;
+    <div class="copybar">
+      <button class="copybtn" id="pdfBtn" onclick="downloadPDF()">📄 Download PDF</button>
+      <button class="copybtn" id="shareBtn" onclick="shareReport()">📢 Share Report</button>
+    </div>`;
 
   // animate gauge + number + bars
   requestAnimationFrame(()=>{
@@ -306,19 +353,21 @@ function render(r){
   });
 }
 
-function copyWA(){
-  const r=report, icon=s=>s==='green'?'🟢':s==='amber'?'🟡':'🔴';
-  const lines=r.categories.map(c=>`${icon(c.status)} *${c.name}* (${c.score}/100)\n   ${c.finding} ➜ ${c.action}`).join("\n");
-  const plan=(r.priorityActions||[]).map(p=>`${p.rank}. ${p.action}`).join("\n");
-  const txt=`*KAIRA TECHNOLOGIES* 📊
+function getReportText() {
+  const r = report;
+  if (!r) return "";
+  const icon = s => s === 'green' ? '🟢' : s === 'amber' ? '🟡' : '🔴';
+  const lines = r.categories.map(c => `${icon(c.status)} *${c.name}* (${c.score}/100)\n   ${c.finding} ➜ ${c.action}`).join("\n");
+  const plan = (r.priorityActions || []).map(p => `${p.rank}. ${p.action}`).join("\n");
+  return `*KAIRA TECHNOLOGIES* 📊
 _Your Digital Health Check_
 
-*${r._biz.name}*, ${r._biz.town}
+*${r._biz ? r._biz.name : 'Business'}*, ${r._biz ? r._biz.town : ''}
 Overall Score: *${r.overallScore}/100* — ${r.grade}
 
 ${r.headline}
 
-${r.competitorNote?'⚠️ '+r.competitorNote+'\n\n':''}*BREAKDOWN*
+${r.competitorNote ? '⚠️ ' + r.competitorNote + '\n\n' : ''}*BREAKDOWN*
 ${lines}
 
 *ACTION PLAN*
@@ -326,13 +375,63 @@ ${plan}
 
 ⭐ *QUICK WIN*: ${r.quickWin}
 
-${r.opportunity||''}
+${r.opportunity || ''}
 
 Want us to get you to the *top of Google*? Contact Team Kaira, Kovilpatti.`;
-  navigator.clipboard.writeText(txt).then(()=>{
-    const b=document.getElementById('cb'); b.textContent="✓ Copied"; b.classList.add('ok');
-    setTimeout(()=>{b.textContent="📋 Copy this report"; b.classList.remove('ok');},2400);
+}
+
+function downloadPDF() {
+  const btn = document.getElementById('pdfBtn');
+  btn.textContent = "Generating PDF...";
+  btn.disabled = true;
+
+  // Apply printing style overrides to the active page
+  document.body.classList.add('pdf-printing');
+
+  const element = document.querySelector('.wrap');
+  const opt = {
+    margin:       [15, 15, 15, 15],
+    filename:     `${report._biz ? report._biz.name.replace(/\s+/g, '_') : 'kaira'}_health_report.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+  };
+
+  html2pdf().set(opt).from(element).save().then(() => {
+    btn.textContent = "📄 Download PDF";
+    btn.disabled = false;
+    // Restore normal styles after saving is completed
+    document.body.classList.remove('pdf-printing');
+  }).catch(err => {
+    console.error("PDF generation error:", err);
+    btn.textContent = "📄 Download PDF";
+    btn.disabled = false;
+    document.body.classList.remove('pdf-printing');
   });
+}
+
+function shareReport() {
+  const txt = getReportText();
+  const btn = document.getElementById('shareBtn');
+  if (navigator.share) {
+    navigator.share({
+      title: 'Digital Health Check - Kaira Technologies',
+      text: txt
+    }).then(() => {
+      btn.textContent = "✓ Shared!";
+      setTimeout(() => { btn.textContent = "📢 Share Report"; }, 2000);
+    }).catch(err => console.log('Error sharing:', err));
+  } else {
+    navigator.clipboard.writeText(txt).then(() => {
+      btn.textContent = "✓ Copied to Clipboard";
+      btn.classList.add('ok');
+      setTimeout(() => {
+        btn.textContent = "📢 Share Report";
+        btn.classList.remove('ok');
+      }, 2400);
+    });
+  }
 }
 
 // sample so you can preview the design without deploying
